@@ -1,0 +1,81 @@
+// Vibe foundation.
+// VibeItem is source-agnostic: category and source are plain strings, so
+// Spotify, AniList, Steam, and later providers can coexist in one category.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  name      String?
+  age       Int?
+  city      String?
+  avatar    String?
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  credential        Credential?
+  connectedAccounts ConnectedAccount[]
+  vibeItems         VibeItem[]
+}
+
+/// Application login secret. passwordHash must never leave the backend.
+model Credential {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// OAuth credentials for an external service.
+/// accessToken and refreshToken store ciphertext and stay on the backend.
+model ConnectedAccount {
+  id             String    @id @default(cuid())
+  userId         String
+  provider       String
+  providerUserId String
+  accessToken    String
+  refreshToken   String?
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+/// One taste signal. Several sources may write items into the same category.
+model VibeItem {
+  id           String   @id @default(cuid())
+  userId       String
+  category     String
+  source       String
+  sourceItemId String
+  name         String
+  /// Unified importance from 0 to 1. Provider-specific ratings belong in metadata.
+  weight       Float?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source, sourceItemId])
+  @@index([userId, category])
+  @@index([userId, source])
+}
